@@ -1,0 +1,17 @@
+:root {
+  /* Fondos */
+  --color-background: #F5F8FA;
+  --color-card-background: #FFFFFF;
+
+  /* Colores principales */
+  --color-primary: #1e6fa5;      /* Azul institucional profundo */
+  --color-primary-light: #3c91d2; /* Azul intermedio / hover */
+
+  /* Acentos */
+  --color-accent: #F5B700;        /* Amarillo‑oro */
+  --color-success: #27AE60;       /* Verde aprobado */
+  --color-error: #E74C3C;         /* Rojo advertencia */
+  --color-text-secondary: #6C7A89; /* Gris medio */
+  --color-text-primary: #1F2937;   /* Gris oscuro para textos principales */
+}
+
