@@ -34,6 +34,29 @@ const router = createRouter({
       component: Home,
       meta: { requiresAuth: true }
     }
+
+    {
+      path: "/unidades",
+      name: "Unidades",
+      component: () => import("../views/unidades/UnidadesView.vue"),
+      meta: { requiresAuth: true }
+    },
+
+    {
+      path: "/unidades/nueva",
+      name: "NuevaUnidad",
+      component: () => import("../views/unidades/UnidadNuevaView.vue"),
+      meta: { requiresAuth: true }
+    },
+
+    {
+      path: "/unidades/:id/editar",
+      name: "EditarUnidad",
+      component: () => import("../views/unidades/UnidadEditarView.vue"),
+      props: true,
+      meta: { requiresAuth: true }
+    },
+
   ],
   
 })
