@@ -3,6 +3,8 @@ import App from '@/App.vue'
 import RegisterView from '@/views/authentication/RegisterView.vue'
 import LoginView from '@/views/authentication/LoginView.vue'
 import ForgotPassword from '@/views/authentication/ForgotPassword.vue'
+import MainLayout from '@/views/app/MainLayout.vue'
+import ClientView from '@/views/users/ClientView.vue'
 import Home from '@/views/app/Home.vue'
 import { getAuth } from 'firebase/auth'
 
@@ -29,10 +31,21 @@ const router = createRouter({
       meta: { requiresGuest: true }
     },
     {
-      path: '/home',
-      name: 'home',
-      component: Home,
-      meta: { requiresAuth: true }
+      path: '/app', // Un prefijo para todas las rutas autenticadas
+      component: MainLayout,
+      meta: { requiresAuth: true },
+      children: [
+        {
+          path: 'home', // La ruta será /app/home
+          name: 'home',
+          component: Home,
+        },
+        {
+          path: 'clients', // La ruta será /app/clients
+          name: 'clients',
+          component: ClientView,
+        }
+      ]
     }
   ],
   
@@ -44,7 +57,7 @@ router.beforeEach((to, from, next) => {
 
   // Si intenta entrar a login/register estando logueado
   if (to.meta.requiresGuest && user) {
-    return next('/home')   // O admin según tu lógica
+    return next('/app/home')   // Redirigir a la nueva ruta de home
   }
 
   // Si intenta entrar a home sin estar logueado

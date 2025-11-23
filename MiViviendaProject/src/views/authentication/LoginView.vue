@@ -50,7 +50,7 @@ const loginUser = async () => {
   try {
     await signInWithEmailAndPassword(auth, email.value, password.value)
     // Redirigir al dashboard o página principal
-    router.push('/home')
+    router.push('/app/home')
   } catch (error) {
     console.error('Error Firebase:', error)
     
