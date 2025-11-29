@@ -1,4 +1,14 @@
 // ============================================================
+//  UTILIDADES
+// ============================================================
+
+function redondear(n) {
+  return Math.round(n * 100) / 100;
+}
+
+
+
+// ============================================================
 //  CONVERSIÓN DE TASAS
 // ============================================================
 
@@ -6,22 +16,19 @@
 export function convertirTNAaTEA(tna, capitalizacion) {
   const r = tna / 100;
 
-  if (capitalizacion === "Mensual") {
-    return Math.pow(1 + r / 12, 12) - 1;
+  switch (capitalizacion) {
+    case "Mensual":
+      return Math.pow(1 + r / 12, 12) - 1;
+    case "Diaria":
+      return Math.pow(1 + r / 360, 360) - 1;
+    case "30 días":
+      return Math.pow(1 + r / 12, 12) - 1;
+    default:
+      return r;
   }
-
-  if (capitalizacion === "Diaria") {
-    return Math.pow(1 + r / 360, 360) - 1;
-  }
-
-  if (capitalizacion === "30 días") {
-    return Math.pow(1 + r / 12, 12) - 1;
-  }
-
-  return r; // si algo falla, deja la tasa como efectiva
 }
 
-// TEA → TEM (interés mensual)
+// TEA → TEM
 export function convertirTEAaTEM(tea) {
   return Math.pow(1 + tea, 1 / 12) - 1;
 }
@@ -29,7 +36,7 @@ export function convertirTEAaTEM(tea) {
 
 
 // ============================================================
-//  VALIDACIONES FINANCIERAS
+//  VALIDACIONES
 // ============================================================
 
 export function validarParametros({ monto, años, tasa }) {
@@ -41,120 +48,116 @@ export function validarParametros({ monto, años, tasa }) {
 
 
 // ============================================================
-//  METODO FRANCÉS – CUOTA
+//  MÉTODO FRANCÉS – CUOTA BASE SIN SEGUROS
 // ============================================================
 
 export function calcularCuotaFrances(monto, tem, n) {
-  return (
-    (monto * (tem * Math.pow(1 + tem, n))) /
-    (Math.pow(1 + tem, n) - 1)
-  );
+  return (monto * tem * Math.pow(1 + tem, n)) / (Math.pow(1 + tem, n) - 1);
 }
 
 
 
 // ============================================================
-//  GENERACIÓN COMPLETA DEL CRONOGRAMA
-// ============================================================
-// A: incluye seguros
-// B: incluye totales
-// C: gracia parametrizable
-// D: retorna estructura para Firestore
-// E: validaciones
+//  GENERACIÓN DEL CRONOGRAMA COMPLETO
 // ============================================================
 
 export function generarCronograma({
+  nombre,
+  clienteId,
+  unidadId,
   monto,
   años,
   tasa,
   tipoTasa,
   capitalizacion,
-  gracia, // "Total" / "Parcial" / "Ninguno"
-  mesesGracia = 3, // parametrizable
-  seguroDesgravamen = 0.0005, // 0.05% mensual (ejemplo)
-  seguroInmueble = 0, // opcional
+  gracia,
+  mesesGracia = 3,
+  seguroDesgravamen = 0.0005,
+  seguroInmueble = 0,
 }) {
-  // VALIDACIONES
   validarParametros({ monto, años, tasa });
 
   const meses = años * 12;
 
-  // 1) Convertir tasa a TEA
-  let tea;
-  if (tipoTasa === "Nominal") {
-    tea = convertirTNAaTEA(tasa, capitalizacion);
-  } else {
-    tea = tasa / 100;
-  }
+  // 1) TEA
+  const tea =
+    tipoTasa === "Nominal"
+      ? convertirTNAaTEA(tasa, capitalizacion)
+      : tasa / 100;
 
   // 2) TEM
   const tem = convertirTEAaTEM(tea);
 
-  // 3) Cuota del francés sin seguros
+  // 3) Cuota sin seguros
   const cuotaBase = calcularCuotaFrances(monto, tem, meses);
 
   const tabla = [];
   let saldo = monto;
 
-  // Totales
+  // Acumuladores
   let totalInteres = 0;
   let totalAmortizacion = 0;
   let totalSeguros = 0;
   let totalCuotas = 0;
+  let interesCapitalizado = 0;
 
   for (let i = 1; i <= meses; i++) {
+    const saldoInicial = saldo;
+
     let interes = saldo * tem;
-    let amortizacion;
-    let cuota;
-    let seguro1 = saldo * seguroDesgravamen;
-    let seguro2 = saldo * seguroInmueble;
-    let seguros = seguro1 + seguro2;
+    let amortizacion = 0;
+    let cuota = 0;
+
+    const seguro1 = saldo * seguroDesgravamen;
+    const seguro2 = saldo * seguroInmueble;
+    const seguros = seguro1 + seguro2;
 
     // ============================
     // GRACIA TOTAL
     // ============================
     if (gracia === "Total" && i <= mesesGracia) {
-      amortizacion = 0;
-      cuota = 0;
-      saldo = saldo + interes; // capitaliza interés
+      interesCapitalizado += interes;
+      saldo = saldo + interes;
     }
 
     // ============================
     // GRACIA PARCIAL
     // ============================
     else if (gracia === "Parcial" && i <= mesesGracia) {
-      amortizacion = 0;
-      cuota = interes; // solo intereses
-      // saldo no cambia
+      cuota = interes + seguros; // solo interés
     }
 
     // ============================
     // SIN GRACIA
     // ============================
     else {
-      cuota = cuotaBase + seguros; // cuota final del cliente
+      cuota = cuotaBase + seguros;
       amortizacion = cuotaBase - interes;
       saldo = saldo - amortizacion;
     }
 
-    // Acumular totales
+    tabla.push({
+      mes: i,
+      saldoInicial: redondear(saldoInicial),
+      interes: redondear(interes),
+      amortizacion: redondear(amortizacion),
+      seguros: redondear(seguros),
+      cuotaSinSeguros: redondear(cuotaBase),
+      cuota: redondear(cuota),
+      saldoFinal: redondear(saldo < 0 ? 0 : saldo),
+    });
+
     totalInteres += interes;
     totalAmortizacion += amortizacion;
     totalSeguros += seguros;
     totalCuotas += cuota;
-
-    tabla.push({
-      mes: i,
-      interes,
-      amortizacion,
-      seguros,
-      cuota,
-      saldo: saldo < 0 ? 0 : saldo,
-    });
   }
 
   return {
     parametros: {
+      nombre,
+      clienteId,
+      unidadId,
       monto,
       años,
       tasa,
@@ -168,11 +171,12 @@ export function generarCronograma({
     resultados: {
       tea,
       tem,
-      cuotaBase,
-      totalInteres,
-      totalAmortizacion,
-      totalSeguros,
-      totalCuotas,
+      cuotaBase: redondear(cuotaBase),
+      totalInteres: redondear(totalInteres),
+      totalAmortizacion: redondear(totalAmortizacion),
+      totalSeguros: redondear(totalSeguros),
+      totalCuotas: redondear(totalCuotas),
+      interesCapitalizado: redondear(interesCapitalizado),
     },
     tabla,
   };

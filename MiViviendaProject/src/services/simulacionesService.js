@@ -4,7 +4,8 @@ import {
   addDoc, 
   getDocs, 
   getDoc, 
-  doc 
+  doc,
+  updateDoc
 } from "firebase/firestore";
 
 const simulacionesCollection = collection(db, "simulaciones");
@@ -16,7 +17,18 @@ export async function guardarSimulacion(simulacion, userId) {
   return await addDoc(simulacionesCollection, {
     ...simulacion,       // parametros + resultados + tabla
     userId,
-    fecha: new Date()
+    fechaCreacion: new Date() // Cambiamos 'fecha' por 'fechaCreacion'
+  });
+}
+
+// ===============================
+//  ACTUALIZAR UNA SIMULACIÓN
+// ===============================
+export async function actualizarSimulacion(id, simulacion) {
+  const docRef = doc(db, "simulaciones", id);
+  return await updateDoc(docRef, {
+    ...simulacion,
+    fechaModificacion: new Date() // Añadimos una fecha de modificación
   });
 }
 

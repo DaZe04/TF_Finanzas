@@ -68,7 +68,9 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue';
+import { ref, watch } from "vue";
+import { db } from "@/firebase";
+import { collection, query, where, getDocs } from "firebase/firestore";
 
 const props = defineProps({
   isOpen: Boolean,
@@ -122,7 +124,7 @@ const handleClose = (force = false) => {
   emit('close');
 };
 
-const validateForm = () => {
+const validateForm = async () => {
   errors.value = { ...initialErrors };
   let isValid = true;
   const client = editableClient.value;
@@ -131,6 +133,30 @@ const validateForm = () => {
   if (!/^\d{8}$/.test(client.dni)) {
     errors.value.dni = 'El DNI debe contener exactamente 8 dígitos numéricos.';
     isValid = false;
+  } else {
+    // --- INICIO DE LA VALIDACIÓN DE DNI ÚNICO ---
+    // 1. Creamos una consulta para buscar en la colección 'clients'
+    //    un documento que tenga el mismo DNI.
+    const q = query(collection(db, "clients"), where("dni", "==", client.dni));
+    const querySnapshot = await getDocs(q);
+
+    if (!querySnapshot.empty) {
+      // Si la consulta no está vacía, significa que ya existe un cliente con ese DNI.
+      if (props.isEditing) {
+        // Si estamos editando, debemos asegurarnos de que el DNI encontrado
+        // no pertenezca a un cliente DIFERENTE.
+        const foundClientId = querySnapshot.docs[0].id;
+        if (foundClientId !== client.id) {
+          errors.value.dni = "Este DNI ya está registrado para otro cliente.";
+          isValid = false;
+        }
+      } else {
+        // Si estamos creando un nuevo cliente, cualquier coincidencia es un error.
+        errors.value.dni = "Este DNI ya está registrado.";
+        isValid = false;
+      }
+    }
+    // --- FIN DE LA VALIDACIÓN ---
   }
 
   // Ocupación: Solo texto y espacios
@@ -161,8 +187,9 @@ const validateForm = () => {
   return isValid;
 };
 
-const handleSave = () => {
-  if (validateForm()) {
+const handleSave = async () => {
+  // La función de validación ahora es asíncrona
+  if (await validateForm()) {
     emit('save', editableClient.value);
   }
 };

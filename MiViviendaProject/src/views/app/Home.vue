@@ -74,7 +74,7 @@ const navigateTo = (path) => {
         </div>
 
         <!-- Card: Simulador -->
-        <div class="card disabled">
+        <div class="card" @click="navigateTo('/app/simulador')">
           <div class="card-icon" style="background-color: rgba(243, 156, 18, 0.1); color: #f39c12;">
             <span>🧮</span>
           </div>

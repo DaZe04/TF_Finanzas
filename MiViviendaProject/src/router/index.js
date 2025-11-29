@@ -7,6 +7,7 @@ import MainLayout from '@/views/app/MainLayout.vue'
 import ClientView from '@/views/users/ClientView.vue'
 import Home from '@/views/app/Home.vue'
 import ConfiguracionView from '@/views/configuration/ConfiguracionView.vue'
+import SimulacionesView from '@/views/simulaciones/SimulacionesView.vue'
 import { getAuth } from 'firebase/auth'
 
 
@@ -51,11 +52,32 @@ const router = createRouter({
         name: "Unidades",
         component: () => import("../views/unidades/UnidadesView.vue"),
         },
-      {
-        path: "configuracion",
-        name: "Configuracion",
-        component: ConfiguracionView,      
-      }
+        {
+          path: "simulador",
+          name: "Simulador",
+          component: SimulacionesView
+        },
+        {
+          path: "simulador/nueva",
+          name: "SimuladorNueva",
+          component: () => import("../views/simulaciones/SimulacionNuevaView.vue"),
+        },
+        {
+          path: "simulador/:id",
+          name: "SimuladorDetalle",
+          component: () => import("../views/simulaciones/SimulacionDetalleView.vue"),
+        },
+        {
+          path: "simulador/:id/indicadores",
+          name: "SimuladorIndicadores",
+          component: () => import("../views/simulaciones/IndicadoresView.vue"),
+        },
+        {
+          path: "configuracion",
+          name: "Configuracion",
+          component: ConfiguracionView,      
+        }
+    
       ]
     }
   ],

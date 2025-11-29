@@ -24,10 +24,10 @@
             <span>🏢</span>
             <span>Inmobiliarias</span>
           </router-link>
-          <a href="#" class="nav-link disabled" @click.prevent>
+          <router-link to="/app/simulador" class="nav-link" @click="close">
             <span>🧮</span> 
             <span>Simulador</span>
-          </a>
+          </router-link>
           <router-link to="/app/configuracion" class="nav-link" @click="close">
             <span>⚙️</span>
             <span>Configuración</span>

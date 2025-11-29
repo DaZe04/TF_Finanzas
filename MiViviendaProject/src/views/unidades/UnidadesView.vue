@@ -34,15 +34,34 @@
 
     <h1>Unidades Inmobiliarias</h1>
 
-    <div class="toolbar">
-      <div class="search-container">
-        <input
-          type="text"
-          v-model="searchQuery"
-          placeholder="Buscar por nombre de proyecto..."
-          class="search-input"
-        />
+    <!-- Panel de Filtros Avanzado -->
+    <div class="filters-panel">
+      <div class="filters-header">
+        <h3>Filtrar Unidades</h3>
+        <button @click="limpiarFiltros" class="clear-button">Limpiar Filtros</button>
       </div>
+      <div class="filters-grid">
+        <div class="form-group">
+          <label>Proyecto</label>
+          <input type="text" v-model="searchProyecto" placeholder="Nombre del proyecto" />
+        </div>
+        <div class="form-group">
+          <label>Número de Unidad</label>
+          <input type="text" v-model="searchNumero" placeholder="Ej: 101, A-203" />
+        </div>
+        <div class="form-group range-group">
+          <label>Precio (S/)</label>
+          <input type="number" v-model.number="searchPrecioMin" placeholder="Mínimo" />
+          <input type="number" v-model.number="searchPrecioMax" placeholder="Máximo" />
+        </div>
+        <div class="form-group range-group">
+          <label>Área (m²)</label>
+          <input type="number" v-model.number="searchAreaMin" placeholder="Mínima" />
+          <input type="number" v-model.number="searchAreaMax" placeholder="Máxima" />
+        </div>
+      </div>
+    </div>
+    <div class="toolbar">      
       <button @click="openModal()" class="add-button">Nueva Unidad</button>
     </div>
 
@@ -122,8 +141,13 @@ const isInfoModalOpen = ref(false);
 const unidadToDelete = ref(null);
 const userRole = ref(null);
 
-// Estado para el filtro de búsqueda
-const searchQuery = ref('');
+// --- Estados para los filtros de búsqueda ---
+const searchProyecto = ref('');
+const searchNumero = ref('');
+const searchPrecioMin = ref(null);
+const searchPrecioMax = ref(null);
+const searchAreaMin = ref(null);
+const searchAreaMax = ref(null);
 
 // Estado para la paginación
 const currentPage = ref(1);
@@ -202,17 +226,40 @@ const handleDeleteConfirm = async () => {
   }
 };
 
+// Función para limpiar todos los filtros
+const limpiarFiltros = () => {
+  searchProyecto.value = '';
+  searchNumero.value = '';
+  searchPrecioMin.value = null;
+  searchPrecioMax.value = null;
+  searchAreaMin.value = null;
+  searchAreaMax.value = null;
+};
+
 // Lógica de filtro y paginación
 const filteredUnidades = computed(() => {
-  if (!searchQuery.value) {
-    return unidades.value;
-  }
-  return unidades.value.filter(unidad =>
-    unidad.proyecto.toLowerCase().includes(searchQuery.value.toLowerCase())
-  );
+  return unidades.value.filter(u => {
+    const proyectoMatch = searchProyecto.value ? u.proyecto.toLowerCase().includes(searchProyecto.value.toLowerCase()) : true;
+    const numeroMatch = searchNumero.value ? u.numero_unidad.toLowerCase().includes(searchNumero.value.toLowerCase()) : true;
+    
+    const precioMinMatch = searchPrecioMin.value ? u.precio_venta >= searchPrecioMin.value : true;
+    const precioMaxMatch = searchPrecioMax.value ? u.precio_venta <= searchPrecioMax.value : true;
+
+    const areaMinMatch = searchAreaMin.value ? u.area_construida >= searchAreaMin.value : true;
+    const areaMaxMatch = searchAreaMax.value ? u.area_construida <= searchAreaMax.value : true;
+
+    return proyectoMatch && numeroMatch && precioMinMatch && precioMaxMatch && areaMinMatch && areaMaxMatch;
+  });
 });
 
-watch(searchQuery, () => {
+watch([
+  searchProyecto,
+  searchNumero,
+  searchPrecioMin,
+  searchPrecioMax,
+  searchAreaMin,
+  searchAreaMax
+], () => {
   currentPage.value = 1; // Resetear a la primera página al buscar
 });
 
@@ -246,34 +293,7 @@ h1 {
 }
 
 .toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
   margin-bottom: 1.5rem;
-  flex-wrap: wrap;
-  gap: 1rem;
-}
-
-.search-container {
-  flex-grow: 1;
-}
-
-.search-input {
-  width: 100%;
-  max-width: 400px;
-  padding: 10px 15px;
-  border: 1px solid var(--color-border);
-  border-radius: 5px;
-  background-color: var(--color-card-background);
-  color: var(--color-text-primary);
-  font-size: 1rem;
-  transition: all 0.2s;
-}
-
-.search-input:focus {
-  outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px rgba(0, 92, 153, 0.2);
 }
 
 .add-button {
@@ -282,14 +302,87 @@ h1 {
   border: none;
   border-radius: 5px;
   cursor: pointer;
-  font-size: 16px;
-  margin-bottom: 1rem;
+  font-size: 1rem;
   padding: 10px;
 }
 
 .add-button:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 15px rgba(0, 92, 153, 0.25);
+}
+
+/* Estilos para el nuevo panel de filtros */
+.filters-panel {
+  background-color: var(--color-card-background);
+  padding: 1rem 1.5rem;
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+}
+
+.filters-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.filters-header h3 {
+  margin: 0;
+  color: var(--color-heading);
+}
+
+.clear-button {
+  background: none;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  padding: 6px 12px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: all 0.2s;
+}
+
+.clear-button:hover {
+  background-color: var(--color-background-soft);
+  color: var(--color-text-primary);
+}
+
+.filters-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.form-group label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  margin-bottom: 0.25rem;
+}
+
+.form-group input {
+  padding: 8px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  background-color: var(--color-background-soft);
+  color: var(--color-text-primary);
+}
+
+.range-group {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto 1fr;
+  gap: 0.5rem;
+}
+
+.range-group label {
+  grid-column: 1 / -1; /* La etiqueta ocupa todo el ancho */
 }
 
 

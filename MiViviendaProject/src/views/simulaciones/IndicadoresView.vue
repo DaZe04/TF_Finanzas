@@ -9,7 +9,7 @@
 
       <p><b>VAN:</b> {{ van.toFixed(2) }}</p>
       <p><b>TIR mensual:</b> {{ (tir * 100).toFixed(4) }}%</p>
-      <p><b>TIR anual:</b> {{ (Math.pow(1 + tir, 12) - 1).toFixed(4) * 100 }}%</p>
+      <p><b>TIR anual:</b> {{ ((Math.pow(1 + tir, 12) - 1) * 100).toFixed(4) }}%</p>
       <p><b>CTC – Costo Total del Crédito:</b> {{ ctc.toFixed(2) }}</p>
       <p><b>TCEA:</b> {{ (tcea * 100).toFixed(4) }}%</p>
     </div>
@@ -21,7 +21,7 @@ import { ref, onMounted } from "vue";
 import { useRoute } from "vue-router";
 import { obtenerSimulacion } from "@/services/simulacionesService.js";
 
-import { VAN, TIR, CTC, TCEA } from "@/utils/Indicadores.js";
+import { VAN, TIR, CTC, TCEA } from "@/utils/Indicaciones";
 
 const route = useRoute();
 const id = route.params.id;
@@ -46,6 +46,11 @@ onMounted(async () => {
 
   const flujo0 = -simulacion.value.parametros.monto;
   const flujos = [flujo0, ...simulacion.value.tabla.map(f => f.cuota)];
+
+
+  simulacion.value.tabla.forEach(f => {
+  flujos.push(f.cuota);
+  });
 
   // VAN usando TEM
   const tem = simulacion.value.resultados.tem;

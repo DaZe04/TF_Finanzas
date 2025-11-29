@@ -1,26 +1,22 @@
 // ============================================================
 //  VAN - Valor Actual Neto
 // ============================================================
-// flujos: array de flujos de caja (negativo al inicio)
-// tasa: tasa de descuento mensual (TEM) o tasa anual convertida
+
 export function VAN(flujos, tasa) {
-  let van = 0;
-
-  for (let t = 0; t < flujos.length; t++) {
-    van += flujos[t] / Math.pow(1 + tasa, t);
-  }
-
-  return van;
+  return flujos.reduce(
+    (acc, f, t) => acc + f / Math.pow(1 + tasa, t),
+    0
+  );
 }
 
 
 
 // ============================================================
-//  TIR - Tasa Interna de Retorno
+//  TIR - Interna
 // ============================================================
-// Se calcula por método iterativo (Newton Raphson)
-export function TIR(flujos, precision = 0.0000001, maxIter = 5000) {
-  let r = 0.1; // 10% como valor inicial
+
+export function TIR(flujos, precision = 1e-7, maxIter = 5000) {
+  let r = 0.1; // guess inicial
 
   for (let i = 0; i < maxIter; i++) {
     let f = 0;
@@ -37,7 +33,7 @@ export function TIR(flujos, precision = 0.0000001, maxIter = 5000) {
     r = rNuevo;
   }
 
-  return null; // no converge
+  return null;
 }
 
 
@@ -45,7 +41,7 @@ export function TIR(flujos, precision = 0.0000001, maxIter = 5000) {
 // ============================================================
 //  CTC - Costo Total del Crédito
 // ============================================================
-// Suma de todas las cuotas pagadas
+
 export function CTC(tabla) {
   return tabla.reduce((acc, fila) => acc + fila.cuota, 0);
 }
@@ -55,8 +51,44 @@ export function CTC(tabla) {
 // ============================================================
 //  TCEA - Tasa de Costo Efectiva Anual
 // ============================================================
-// TCEA = (1 + in / montoSolicitado) ^ 12 - 1
+// Correcta:
+//     (1 + r_mensual)^12 - 1
+
 export function TCEA(monto, totalPagado) {
-  const tem = totalPagado / monto - 1; // rendimiento mensual equivalente
+  const tem = totalPagado / monto - 1;
   return Math.pow(1 + tem, 12) - 1;
+}
+
+
+
+// ============================================================
+//  NUEVO: Genera flujos desde el cronograma
+//  Para VAN, TIR, TCEA
+// ============================================================
+// flujo[0]  = desembolso (negativo)
+// flujo[i]  = cuota del mes i
+export function generarFlujosDesdeCronograma(tabla, montoDesembolsado) {
+  const flujos = [-montoDesembolsado];
+
+  tabla.forEach((fila) => {
+    flujos.push(fila.cuota);
+  });
+
+  return flujos;
+}
+
+
+
+// ============================================================
+//  NUEVO: conversiones adicionales
+// ============================================================
+
+// TEM → TEA
+export function convertirTEMaTEA(tem) {
+  return Math.pow(1 + tem, 12) - 1;
+}
+
+// TEA → tasa continua
+export function convertirTEAaTasaContinua(tea) {
+  return Math.log(1 + tea);
 }
