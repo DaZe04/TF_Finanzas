@@ -58,3 +58,23 @@ export const obtenerSimulacionesGlobal = async () => {
   const snap = await getDocs(colRef);
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 };
+
+// ===============================
+//  OBTENER UN CLIENTE POR ID
+// ===============================
+export async function getClientById(id) {
+  const ref = doc(db, "clients", id);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return null;
+  return { id, ...snap.data() };
+}
+
+// ===============================
+//  OBTENER UNA UNIDAD POR ID
+// ===============================
+export async function getUnidadById(id) {
+  const ref = doc(db, "unidades", id);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return null;
+  return { id, ...snap.data() };
+}

@@ -57,7 +57,7 @@
             </div>
             <div class="result-price">
               <span class="price-label">Precio</span>
-              <span class="price-value">S/ {{ formatPrice(unidad.precio_venta) }}</span>
+              <span class="price-value">{{ formatCurrency(unidad.precio_venta, unidad.moneda) }}</span>
             </div>
           </li>
         </ul>
@@ -110,8 +110,11 @@ const filteredUnidades = computed(() => {
   });
 });
 
-function formatPrice(price) {
-  return new Intl.NumberFormat('es-PE').format(price);
+function formatCurrency(value, currency = 'PEN') {
+  if (typeof value !== 'number') return value;
+  const currencySymbol = currency === 'USD' ? 'USD' : 'PEN';
+  const style = currency === 'USD' ? 'en-US' : 'es-PE';
+  return new Intl.NumberFormat(style, { style: 'currency', currency: currencySymbol }).format(value);
 }
 
 function selectUnidad(unidad) {

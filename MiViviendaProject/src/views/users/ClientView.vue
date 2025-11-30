@@ -51,7 +51,7 @@
             <td>{{ client.dni }}</td>
             <td>{{ client.email }}</td>
             <td>{{ client.phone }}</td>
-            <td>{{ formatCurrency(client.income) }}</td>
+            <td>{{ formatCurrency(client.income, client.incomeCurrency) }}</td>
             <td>
               <button @click="openInfoModal(client)" class="info-button">Más Info.</button>
               <button @click="openFormModal(client)" class="edit-button">Editar</button>
@@ -242,9 +242,11 @@ const confirmDeleteClient = async () => {
   closeDeleteModal();
 };
 
-const formatCurrency = (value) => {
+const formatCurrency = (value, currency = 'PEN') => {
   if (typeof value !== 'number') return value;
-  return new Intl.NumberFormat('es-PE', { style: 'currency', currency: 'PEN' }).format(value);
+  const currencySymbol = currency === 'USD' ? 'USD' : 'PEN';
+  const style = currency === 'USD' ? 'en-US' : 'es-PE';
+  return new Intl.NumberFormat(style, { style: 'currency', currency: currencySymbol }).format(value);
 };
 
 const nextPage = () => {

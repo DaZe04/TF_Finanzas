@@ -23,9 +23,15 @@
               <option value="Viudo/a">Viudo/a</option>
             </select>
           </div>
-          <div class="form-group">
+          <div class="form-group income-group">
             <label for="income">Ingresos (Mensuales)</label>
-            <input id="income" v-model.number="editableClient.income" type="number" step="0.01" required />
+            <div class="input-with-select">
+              <input id="income" v-model.number="editableClient.income" type="number" step="0.01" required />
+              <select v-model="editableClient.incomeCurrency">
+                <option value="PEN">S/</option>
+                <option value="USD">$</option>
+              </select>
+            </div>
             <span v-if="errors.income" class="error-message">{{ errors.income }}</span>
           </div>
           <div class="form-group">
@@ -98,6 +104,7 @@ const getInitialData = () => ({
   dni: '',
   maritalStatus: 'Soltero/a',
   income: 0,
+  incomeCurrency: 'PEN', // Moneda por defecto
   dependents: 0,
   occupation: '',
   phone: '',
@@ -201,5 +208,22 @@ const handleSave = async () => {
   color: var(--color-error);
   font-size: 0.8rem;
   margin-top: 4px;
+}
+
+.income-group .input-with-select {
+  display: flex;
+}
+
+.income-group input {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  flex-grow: 1;
+}
+
+.income-group select {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  border-left: 0;
+  background-color: #f8f9fa;
 }
 </style>

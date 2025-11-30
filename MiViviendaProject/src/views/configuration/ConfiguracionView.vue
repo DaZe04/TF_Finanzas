@@ -5,7 +5,6 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 
 const config = ref({
-  moneda: "Soles",
   tipoTasa: "Nominal",
   capitalizacion: "Mensual",
   plazoGracia: "Ninguno",
@@ -71,14 +70,6 @@ const guardarConfig = async () => {
       </div>
 
       <form v-else @submit.prevent="guardarConfig" class="config-form">
-        <div class="form-group">
-          <label>Moneda</label>
-          <select v-model="config.moneda">
-            <option value="Soles">Soles (PEN)</option>
-            <option value="Dólares">Dólares (USD)</option>
-          </select>
-        </div>
-
         <div class="form-group">
           <label>Tipo de tasa</label>
           <select v-model="config.tipoTasa">

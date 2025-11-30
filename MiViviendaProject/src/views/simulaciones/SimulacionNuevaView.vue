@@ -28,18 +28,48 @@
           />
         </div>
 
+        <!-- PRIMA INICIAL -->
+        <div class="form-group">
+          <label for="prima">Prima Inicial</label>
+          <div class="input-with-prefix">
+            <span class="prefix">S/</span>
+            <input 
+              id="prima"
+              type="number" 
+              v-model="primaInicial" 
+              :min="minPrimaRequired"
+              :disabled="!unidadSeleccionada"
+              placeholder="0.00"
+            />
+          </div>
+          <small v-if="unidadSeleccionada && minPrimaRequired > 0" class="form-hint">Prima mínima requerida: S/ {{ formatPrice(minPrimaRequired) }}</small>
+        </div>
+
         <!-- MONTO -->
         <div class="form-group">
           <label for="monto">Monto del Crédito</label>
           <div class="input-with-prefix">
             <span class="prefix">S/</span>
-            <input 
-              id="monto"
-              type="number" 
-              v-model="monto" 
-              required
-              placeholder="0.00"
-            />
+            <!-- Mostrar claramente precio de la unidad y monto del crédito -->
+            <div style="display:flex;gap:0.5rem;width:100%;">
+              <input 
+                id="precio_unidad"
+                type="text"
+                :value="formatCurrency(precioTotalUnidadPEN, 'PEN')"
+                readonly
+                style="flex:1"
+                title="Precio total de la unidad (precio de venta)"
+              />
+              <input 
+                id="monto"
+                type="text"
+                :value="formatCurrency(monto, 'PEN')"
+                readonly
+                required
+                style="width:240px"
+                title="Monto del crédito (precio - prima)"
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -120,7 +150,10 @@
             </svg>
             <div>
               <strong>{{ unidadSeleccionada.proyecto }} - N° {{ unidadSeleccionada.numero_unidad }}</strong>
-              <p>Precio: S/ {{ formatPrice(unidadSeleccionada.precio_venta) }}</p>
+              <p>
+                Precio: {{ formatCurrency(unidadSeleccionada.precio_venta, unidadSeleccionada.moneda) }}
+                <span v-if="unidadSeleccionada.moneda === 'USD'">(aprox. S/ {{ formatPrice(precioTotalUnidadPEN) }})</span>
+              </p>
             </div>
           </div>
         </div>
@@ -212,18 +245,19 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from "vue";
-import { useRouter, useRoute } from "vue-router";
+import { ref, onMounted, computed, watch } from "vue";
+import { useRouter, useRoute } from "vue-router"; 
 import { getAuth } from "firebase/auth";
 import { db } from "@/firebase"; 
 import { doc, getDoc, collection, getDocs, query, where, limit } from "firebase/firestore";
 import UnidadSearchModal from "@/components/SimulationNewUnit.vue";
 
 import { generarCronograma } from "@/utils/Finanzas";
+import { useConfiguration } from "@/services/configService.js";
 import { guardarSimulacion, obtenerSimulacion, actualizarSimulacion } from "@/services/simulacionesService.js";
 
 const nombreSimulacion = ref("");
-const monto = ref("");
+const primaInicial = ref(0);
 const años = ref("");
 const tasa = ref("");
 const tipoTasa = ref("Efectiva");
@@ -237,16 +271,35 @@ const errorBusquedaCliente = ref("");
 
 const isUnidadModalOpen = ref(false);
 const unidadSeleccionada = ref(null);
+const precioTotalUnidadPEN = ref(0); // Nuevo: Guardamos el precio total aquí
 
 const isEditing = ref(false);
 const editSimulacionId = ref(null); // Guardaremos el ID aquí
 const isLoading = ref(false);
+const appConfig = useConfiguration(); // Usamos la configuración reactiva
 
 const router = useRouter();
 const route = useRoute();
 
 const pageTitle = computed(() => isEditing.value ? 'Editar Simulación' : 'Nueva Simulación');
 const submitButtonText = computed(() => isEditing.value ? 'Actualizar Simulación' : 'Generar Simulación');
+
+// Convertimos 'monto' a una propiedad computada
+const monto = computed(() => {
+  const total = precioTotalUnidadPEN.value || 0;
+  return total - primaInicial.value;
+});
+
+const minPrimaRequired = computed(() => {
+  if (!unidadSeleccionada.value) return 0;
+
+  const prima = unidadSeleccionada.value.prima_minima || 0;
+  if (unidadSeleccionada.value.moneda === 'USD') {
+    const tipoCambio = appConfig.value?.tipoCambioDolar || 3.40;
+    return prima * tipoCambio;
+  }
+  return prima;
+});
 
 onMounted(async () => {
   isLoading.value = true;
@@ -259,8 +312,8 @@ onMounted(async () => {
     const simData = await obtenerSimulacion(editId);
     if (simData && simData.parametros) {
       const params = simData.parametros;
+      // Asignamos todos los parámetros excepto la prima, que se asignará al final.
       nombreSimulacion.value = params.nombre || '';
-      monto.value = params.monto || '';
       años.value = params.años || '';
       tasa.value = params.tasa || '';
       tipoTasa.value = params.tipoTasa || 'Efectiva';
@@ -279,8 +332,24 @@ onMounted(async () => {
         const unidadSnap = await getDoc(doc(db, "unidades", params.unidadId));
         if (unidadSnap.exists()) {
           unidadSeleccionada.value = { id: unidadSnap.id, ...unidadSnap.data() };
+          // calcular precio en PEN según moneda
+          if (unidadSeleccionada.value.moneda === 'USD') {
+            const tipoCambio = appConfig.value?.tipoCambioDolar || 3.40;
+            precioTotalUnidadPEN.value = unidadSeleccionada.value.precio_venta * tipoCambio;
+          } else {
+            precioTotalUnidadPEN.value = unidadSeleccionada.value.precio_venta;
+          }
         }
       }
+
+      // 2) Si por alguna razón no conseguimos la unidad, reconstruimos el precio desde los parámetros guardados
+      if (!precioTotalUnidadPEN.value || precioTotalUnidadPEN.value === 0) {
+        precioTotalUnidadPEN.value = Number(params.monto || 0) + Number(params.primaInicial || 0);
+      }
+
+      // finalmente asignamos la prima (y otros campos)
+      primaInicial.value = params.primaInicial || 0;
+      // ...resto de asignaciones...
     }
   } else if (user) {
     // Cargar configuración por defecto solo si no estamos editando
@@ -300,9 +369,30 @@ function formatPrice(price) {
   return new Intl.NumberFormat('es-PE').format(price);
 }
 
+function formatCurrency(value, currency = 'PEN') {
+  if (typeof value !== 'number') return value;
+  const currencySymbol = currency === 'USD' ? 'USD' : 'PEN';
+  const style = currency === 'USD' ? 'en-US' : 'es-PE';
+  return new Intl.NumberFormat(style, { style: 'currency', currency: currencySymbol }).format(value);
+}
+
 function handleUnidadSeleccionada(unidad) {
   unidadSeleccionada.value = unidad;
-  monto.value = unidad.precio_venta;
+
+  if (unidad.moneda === 'USD') {
+    const tipoCambio = appConfig.value?.tipoCambioDolar;
+    if (tipoCambio && tipoCambio > 0) {
+      precioTotalUnidadPEN.value = unidad.precio_venta * tipoCambio;
+    } else {
+      console.warn("Tipo de cambio no configurado. Usando valor por defecto (3.40).");
+      precioTotalUnidadPEN.value = unidad.precio_venta * 3.40; // Valor de respaldo
+    }
+  } else {
+    precioTotalUnidadPEN.value = unidad.precio_venta;
+  }
+
+  primaInicial.value = minPrimaRequired.value; // Asignar la prima mínima por defecto
+
   isUnidadModalOpen.value = false;
 }
 
@@ -330,6 +420,14 @@ async function crearSimulacion() {
   try {
     error.value = "";
 
+    // --- VALIDACIÓN DE PRIMA ANTES DE ENVIAR ---
+    // Si la prima es menor a la requerida, la corregimos y detenemos el envío.
+    if (unidadSeleccionada.value && Number(primaInicial.value) < minPrimaRequired.value) {
+      primaInicial.value = minPrimaRequired.value;
+      error.value = `La prima inicial no puede ser menor a S/ ${formatPrice(minPrimaRequired.value)}. Se ha ajustado automáticamente.`;
+      return;
+    }
+
     const user = getAuth().currentUser;
     if (!user) {
       error.value = "Debes iniciar sesión.";
@@ -349,6 +447,7 @@ async function crearSimulacion() {
     const resultado = generarCronograma({
       nombre: nombreSimulacion.value,
       monto: Number(monto.value),
+      primaInicial: Number(primaInicial.value),
       clienteId: clienteEncontrado.value.id,
       unidadId: unidadSeleccionada.value.id,
       años: Number(años.value),
@@ -375,6 +474,11 @@ async function crearSimulacion() {
   }
 }
 </script>
+
+<style scoped>
+/* ... (estilos existentes) ... */
+.form-hint { font-size: 0.8rem; color: var(--color-text-secondary); margin-top: 4px; }
+</style>
 
 <style scoped>
 .container {
@@ -450,6 +554,11 @@ async function crearSimulacion() {
   color: var(--color-text-primary);
   background-color: white;
   box-sizing: border-box;
+}
+
+.form-group input[readonly] {
+  background-color: var(--color-background-soft);
+  cursor: not-allowed;
 }
 
 .form-group input:focus,

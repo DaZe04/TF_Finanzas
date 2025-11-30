@@ -1,5 +1,5 @@
 <template>
-  <div class="detalle-container">
+  <div class="detalle-container" v-if="!isLoading">
     <div v-if="!simulacion" class="loading-state">Cargando...</div>
 
     <div v-else>
@@ -11,6 +11,35 @@
         </button>
       </div>
 
+      <!-- Panel de Análisis de Viabilidad -->
+      <div v-if="cliente" class="viability-panel" :class="viabilityClass">
+        <div class="viability-icon">
+          <svg v-if="isClientApt" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          <svg v-else width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+        </div>
+        <div class="viability-content">
+          <h2 class="viability-title">{{ viabilityStatus.title }}</h2>
+          <p class="viability-message">{{ viabilityStatus.message }}</p>
+          <div class="viability-details">
+            <span>Ingresos del Cliente: <strong>{{ formatCurrency(cliente.income, cliente.incomeCurrency) }}</strong></span>
+            <span>Ingresos en PEN (para cálculo): <strong>S/ {{ formatPrice(clientIncomeInPEN) }}</strong></span>
+            <span>Cuota Mensual Máxima: <strong>S/ {{ formatPrice(maxMonthlyPayment) }}</strong></span>
+            <span>Cuota del Crédito: <strong>S/ {{ formatPrice(creditMonthlyPayment) }}</strong></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="summary-panel">
+        <div class="param-item" v-if="cliente">
+          <label>Cliente</label>
+          <span>{{ cliente.fullName }}</span>
+        </div>
+        <div class="param-item" v-if="unidad">
+          <label>Proyecto Inmobiliario</label>
+          <span>{{ unidad.proyecto }}</span>
+        </div>
+      </div>
+
       <!-- Panel de Parámetros -->
       <div class="summary-panel">
         <h2 class="panel-title">Parámetros Utilizados</h2>
@@ -18,6 +47,10 @@
           <div class="param-item">
             <label>Monto del Crédito</label>
             <span>S/ {{ formatPrice(simulacion.parametros.monto) }}</span>
+          </div>
+          <div class="param-item" v-if="simulacion.parametros.primaInicial > 0">
+            <label>Prima Inicial</label>
+            <span>S/ {{ formatPrice(simulacion.parametros.primaInicial) }}</span>
           </div>
           <div class="param-item">
             <label>Plazo</label>
@@ -87,12 +120,39 @@
 
 <script setup>
 import { ref, onMounted, computed } from "vue";
-import { obtenerSimulacion } from "@/services/simulacionesService.js";
+import { obtenerSimulacion, getClientById, getUnidadById } from "@/services/simulacionesService.js";
+import { useConfiguration } from "@/services/configService.js";
 import { useRoute } from "vue-router";
 
 const route = useRoute();
 const id = route.params.id;
 const simulacion = ref(null);
+const cliente = ref(null);
+const unidad = ref(null);
+const isLoading = ref(true);
+const appConfig = useConfiguration(); // Usamos la configuración reactiva
+
+// --- Lógica de Viabilidad ---
+const VIABILITY_THRESHOLD = 0.40; // 40% del ingreso mensual
+
+const clientIncomeInPEN = computed(() => {
+  if (!cliente.value) return 0;
+  // Si los ingresos están en USD, los convertimos a PEN. Si no, los usamos directamente.
+  if (cliente.value.incomeCurrency === 'USD') {
+    const tipoCambio = appConfig.value?.tipoCambioDolar;
+    if (tipoCambio && typeof tipoCambio === 'number' && tipoCambio > 0) {
+      return cliente.value.income * tipoCambio;
+    }
+    // Si no hay tipo de cambio en la config, usamos uno por defecto y advertimos.
+    console.warn("Tipo de cambio no configurado en Firestore. Usando valor por defecto (3.40) para el cálculo de viabilidad.");
+    return cliente.value.income * 3.40; // Valor de respaldo
+  }
+  return cliente.value.income;
+});
+
+const isClientApt = computed(() => cliente.value && maxMonthlyPayment.value >= creditMonthlyPayment.value);
+
+const maxMonthlyPayment = computed(() => clientIncomeInPEN.value * VIABILITY_THRESHOLD);
 
 // --- Lógica de Paginación ---
 const currentPage = ref(1);
@@ -110,6 +170,30 @@ const paginatedTabla = computed(() => {
   return simulacion.value.tabla.slice(start, end);
 });
 
+const creditMonthlyPayment = computed(() => {
+  if (!simulacion.value?.tabla || simulacion.value.tabla.length === 0) return 0;
+  // Usamos la cuota más alta del cronograma para el cálculo, por si hay periodos de gracia.
+  return Math.max(...simulacion.value.tabla.map(fila => fila.cuota));
+});
+
+const viabilityStatus = computed(() => {
+  if (!cliente.value) return {};
+  if (isClientApt.value) {
+    return {
+      title: "Cliente Apto para el Crédito",
+      message: "La cuota mensual del crédito se encuentra dentro del rango saludable respecto a los ingresos del cliente."
+    };
+  }
+  return {
+    title: "Cliente No Apto para el Crédito",
+    message: "La cuota mensual del crédito supera el 40% de los ingresos declarados por el cliente, lo cual representa un riesgo financiero elevado."
+  };
+});
+
+const viabilityClass = computed(() => {
+  return isClientApt.value ? 'is-apt' : 'is-not-apt';
+});
+
 const nextPage = () => {
   if (currentPage.value < totalPages.value) currentPage.value++;
 };
@@ -125,8 +209,28 @@ function formatPrice(price) {
   }).format(price);
 }
 
+function formatCurrency(value, currency = 'PEN') {
+  if (typeof value !== 'number') return value;
+  const currencySymbol = currency === 'USD' ? 'USD' : 'PEN';
+  const style = currency === 'USD' ? 'en-US' : 'es-PE';
+  return new Intl.NumberFormat(style, { style: 'currency', currency: currencySymbol }).format(value);
+}
+
 onMounted(async () => {
+  isLoading.value = true;
   simulacion.value = await obtenerSimulacion(id);
+
+  if (simulacion.value && simulacion.value.parametros) {
+    const { clienteId, unidadId } = simulacion.value.parametros;
+    if (clienteId) {
+      cliente.value = await getClientById(clienteId);
+    }
+    if (unidadId) {
+      unidad.value = await getUnidadById(unidadId);
+    }
+  }
+
+  isLoading.value = false;
 });
 </script>
 
@@ -168,6 +272,59 @@ onMounted(async () => {
 .btn-back:hover {
   background-color: var(--color-primary);
   color: #fff;
+}
+
+/* Estilos para el panel de viabilidad */
+.viability-panel {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.5rem;
+  padding: 1.5rem;
+  border-radius: 8px;
+  margin-bottom: 2rem;
+  border: 1px solid;
+}
+
+.viability-panel.is-apt {
+  background-color: #f0fdf4;
+  border-color: #bbf7d0;
+  color: #15803d;
+}
+
+.viability-panel.is-not-apt {
+  background-color: #fef2f2;
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+
+.viability-icon {
+  flex-shrink: 0;
+}
+
+.viability-content {
+  flex-grow: 1;
+}
+
+.viability-title {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.viability-message {
+  margin: 0 0 1rem 0;
+  font-size: 0.95rem;
+  opacity: 0.9;
+}
+
+.viability-details {
+  display: flex;
+  gap: 2rem;
+  font-size: 0.875rem;
+  padding-top: 1rem;
+  border-top: 1px dashed;
+  opacity: 0.8;
+  flex-wrap: wrap;
 }
 
 .table-container {

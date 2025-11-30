@@ -7,6 +7,13 @@
 </template>
 
 <script setup>
+import { onMounted } from 'vue';
+import { initializeConfigurationListener } from '@/services/configService.js';
+
+onMounted(() => {
+  // Iniciamos el listener para la configuración en toda la app.
+  initializeConfigurationListener();
+});
 </script>
 
 <style scoped>
